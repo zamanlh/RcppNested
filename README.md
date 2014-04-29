@@ -6,9 +6,9 @@ This is under heavy development, and is highly experimental at the moment. In th
 
 Some preliminary stats on the vegan R package compared with the new NODF function in C
 
-> c_version 
-user  system elapsed 
-0.240   0.001   0.240 
-> r_version
-user  system elapsed 
-23.141   0.113  23.048 
+	> c_version 
+	user  system elapsed 
+	0.240   0.001   0.240 
+	> r_version
+	user  system elapsed 
+	23.141   0.113  23.048 
