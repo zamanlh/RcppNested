@@ -8,3 +8,6 @@ sourceCpp("nestedness.cpp")
 
 vegan::nestednodf(csv_mat)
 calculateNODF(csv_mat)
+
+nodf_null <- replicate(10000, calculateNODF(getRandomMatrix_Fill(csv_mat))$NODF)
+hist(nodf_null)

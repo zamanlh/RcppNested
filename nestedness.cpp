@@ -151,7 +151,14 @@ List calculateNODF(NumericMatrix m) {
 	to_return["Matrix fill"] = matrix_fill;
 	
 	return(to_return);
+}
 
+
+// [[Rcpp::export]]
+NumericMatrix getRandomMatrix_Fill(NumericMatrix originalMatrix) {
+	NumericMatrix random_mat = originalMatrix;
+	std::random_shuffle(random_mat.begin(), random_mat.end());
+	return random_mat;
 }
 
 
