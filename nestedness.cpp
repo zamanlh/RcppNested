@@ -159,5 +159,34 @@ NumericMatrix getRandomMatrix_Fill(NumericMatrix originalMatrix) {
 	std::random_shuffle(random_mat.begin(), random_mat.end());
 	return random_mat;
 }
+// [[Rcpp::export]]
+NumericMatrix getRandomMatrix_RowShuffle(NumericMatrix originalMatrix) {
+	NumericMatrix random_mat = clone(originalMatrix);
 
+	for(int i = 0; i < random_mat.nrow(); i++) {
+		NumericMatrix::Row single_row = random_mat(i,_);
+		std::random_shuffle(single_row.begin(), single_row.end());
+	}
+
+	return random_mat;
+}
+
+// [[Rcpp::export]]
+NumericMatrix getRandomMatrix_ColShuffle(NumericMatrix originalMatrix) {
+	NumericMatrix random_mat = clone(originalMatrix);
+
+	for(int i = 0; i < random_mat.ncol(); i++) {
+		NumericMatrix::Column single_column = random_mat(_,i);
+		std::random_shuffle(single_column.begin(), single_column.end());
+	}
+
+	return random_mat;
+}
+
+// [[Rcpp::export]]
+NumericMatrix getRandomMatrix_Grow(NumericMatrix originalMatrix, NumericVector hostEvents, NumericVector paraEvents, NumericVector edgeEvents) {
+	NumericMatrix random_mat = clone(originalMatrix);
+	std::random_shuffle(random_mat.begin(), random_mat.end());
+	return random_mat;
+}
 
