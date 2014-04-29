@@ -8,7 +8,7 @@ using namespace Rcpp;
 typedef std::pair<int,int> myPair;
 
 //sorter for myPair type
-bool comparator_r ( const myPair& l, const myPair& r) { 
+static bool comparator_r ( const myPair& l, const myPair& r) { 
 	return l.first > r.first; 
 }
 
@@ -58,7 +58,7 @@ List calculateNODF(NumericMatrix m) {
 
 	std::vector<int> colSums(numCols);
 	std::vector<int> rowSums(numRows);
-
+	
 	float N_row = 0.0;
 	float N_col = 0.0;
 	float row_NODF = 0.0;
@@ -77,12 +77,12 @@ List calculateNODF(NumericMatrix m) {
 	}
 
 	//calculate NODF for rows
-	for(int i = 0; i < numRows-1; i++) {
+	for(int i = 0; i < numRows - 1; i++) {
 		for(int j=i+1; j < numRows; j++) {
 			if(rowSums[j] < rowSums[i]) {
 				int k = 0;
 				float sum_po_positive = 0.0;
-				float sum_po_negative = 0.0;
+				float sum_po_negative = 0.00001;
 				
 				//N_row = PO for this case
 				for(int k=0;k<numCols;k++) {
@@ -107,12 +107,12 @@ List calculateNODF(NumericMatrix m) {
 	}
 
 	//calculate NODF for columns
-	for(int i = 0; i < numCols-1; i++) {
+	for(int i = 0; i < numCols - 1; i++) {
 		for(int j=i+1; j < numCols; j++) {
 			if(colSums[j] < colSums[i]) {
 				int k = 0;
 				float sum_po_positive = 0.0;
-				float sum_po_negative = 0.0;
+				float sum_po_negative = 0.00001;
 				
 				//N_row = PO for this case
 				for(int k=0;k<numRows;k++) {
@@ -141,7 +141,6 @@ List calculateNODF(NumericMatrix m) {
 	
 	//calculate composite NODF
 	final_NODF = ((N_col + N_row)*100)/( (numCols*(numCols-1)/2.0) + (numRows*(numRows-1)/2.0) );
-	
 
 	//Return same data as vegan::nestednodf()
 	List to_return; 
@@ -156,7 +155,7 @@ List calculateNODF(NumericMatrix m) {
 
 // [[Rcpp::export]]
 NumericMatrix getRandomMatrix_Fill(NumericMatrix originalMatrix) {
-	NumericMatrix random_mat = originalMatrix;
+	NumericMatrix random_mat = clone(originalMatrix);
 	std::random_shuffle(random_mat.begin(), random_mat.end());
 	return random_mat;
 }
