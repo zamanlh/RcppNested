@@ -1,6 +1,6 @@
 #include <Rcpp.h> 
-#include <vector>       // std::vector
-#include <algorithm>    // std::sort
+#include <vector>
+#include <algorithm>
 
 using namespace Rcpp;
 
@@ -151,16 +151,17 @@ List calculateNODF(NumericMatrix m) {
 	
 	return(to_return);
 }
-
-
+	
 // [[Rcpp::export]]
 NumericMatrix getRandomMatrix_Fill(NumericMatrix originalMatrix) {
+	RNGScope scope;
 	NumericMatrix random_mat = clone(originalMatrix);
 	std::random_shuffle(random_mat.begin(), random_mat.end());
 	return random_mat;
 }
 // [[Rcpp::export]]
 NumericMatrix getRandomMatrix_RowShuffle(NumericMatrix originalMatrix) {
+	RNGScope scope;
 	NumericMatrix random_mat = clone(originalMatrix);
 
 	for(int i = 0; i < random_mat.nrow(); i++) {
@@ -173,6 +174,7 @@ NumericMatrix getRandomMatrix_RowShuffle(NumericMatrix originalMatrix) {
 
 // [[Rcpp::export]]
 NumericMatrix getRandomMatrix_ColShuffle(NumericMatrix originalMatrix) {
+	RNGScope scope;
 	NumericMatrix random_mat = clone(originalMatrix);
 
 	for(int i = 0; i < random_mat.ncol(); i++) {
@@ -184,9 +186,65 @@ NumericMatrix getRandomMatrix_ColShuffle(NumericMatrix originalMatrix) {
 }
 
 // [[Rcpp::export]]
-NumericMatrix getRandomMatrix_Grow(NumericMatrix originalMatrix, NumericVector hostEvents, NumericVector paraEvents, NumericVector edgeEvents) {
-	NumericMatrix random_mat = clone(originalMatrix);
-	std::random_shuffle(random_mat.begin(), random_mat.end());
+NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int timeSteps) {
+	RNGScope scope;
+	NumericMatrix random_mat(originalMatrix.nrow(), originalMatrix.ncol());
+	int num_edges = std::accumulate(originalMatrix.begin(), originalMatrix.end(), 0);
+	int num_m = originalMatrix.nrow();
+	int num_n = originalMatrix.ncol();
+
+	double lambda_edge = (double(num_edges) - 1) /timeSteps;
+	double lambda_m = (double(num_m) - 1)/timeSteps;
+	double lambda_n = (double(num_n) - 1)/timeSteps;
+
+	NumericVector edge_event_vector = rpois(timeSteps*3, lambda_edge);
+	NumericVector m_event_vector = rpois(timeSteps, lambda_m);
+	NumericVector n_event_vector = rpois(timeSteps, lambda_n);
+
+	int cur_edges = 1;
+	int cur_m = 1;
+	int cur_n = 1;
+
+	while(cur_m < num_m || cur_n < num_n || cur_edges < num_edges) {
+		//add m (hosts)
+		if (cur_m < num_m) cur_m += rpois(1, lambda_m)[0];
+
+		//add n (parasites)
+		if (cur_n < num_n) cur_n += rpois(1, lambda_n)[0];
+
+		//add edges 
+		if(cur_edges < num_edges) {
+			int edge_event = rpois(1, lambda_edge)[0];
+
+			if(cur_m*cur_n - cur_edges < edge_event) {
+				//not enough space for edges...
+				//max out how many edges we should add then
+				edge_event = cur_m * cur_n - cur_edges;
+			}
+
+			int num_edges_left = edge_event;
+
+			while(num_edges_left > 0) {
+				//better algorithm : count how many non-edges there are, use that as prob of picking 1 of them
+				//iterate through matrix until we find a 0, then pull from ^ prob to add edge or not...			
+				int num_vacant_edges = cur_m * cur_n - cur_edges;
+				double prob_add_edge = 1 / double(num_vacant_edges);
+
+				for(int i = 0; i < cur_m; i++) {
+					for(int j=0; j < cur_n; j++) {
+						double ran_draw = runif(1, 0, 1)[0];
+
+						if(random_mat(i,j) == 0 && ran_draw < prob_add_edge && num_edges_left > 0) {
+							num_edges_left -= 1;
+							cur_edges += 1;
+							random_mat(i, j) = 1;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return random_mat;
 }
 
