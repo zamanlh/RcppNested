@@ -212,6 +212,10 @@ NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int ti
 		//add n (parasites)
 		if (cur_n < num_n) cur_n += rpois(1, lambda_n)[0];
 
+
+		//TODO: make sure cur_n and cur_m never go > m and n, since in this model,
+		//we have a max size on our matrix from the start. 
+		
 		//add edges 
 		if(cur_edges < num_edges) {
 			int edge_event = rpois(1, lambda_edge)[0];
