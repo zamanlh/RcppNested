@@ -5,6 +5,14 @@
 #include <unordered_map>
 using namespace Rcpp;
 
+//setup pair type to hold index and value, so we can sort indexes instead of values
+typedef std::pair<int,int> myPair;
+
+//sorter for myPair type
+static bool comparator_r ( const myPair& l, const myPair& r) { 
+	return l.first > r.first; 
+}
+
 class DynamicBipartiteNet 
 {
 	private:
@@ -13,6 +21,12 @@ class DynamicBipartiteNet
 		int num_n;
 		int num_m;
 	public:
+		~DynamicBipartiteNet() {
+			m_neighbor_set.clear();
+			n_neighbor_set.clear();
+			m_neighbor_set.~unordered_map<int, std::list<int> >();
+			n_neighbor_set.~unordered_map<int, std::list<int> >();
+		};
 		DynamicBipartiteNet() {
 			num_n = 0;
 			num_m = 0;
@@ -150,22 +164,29 @@ class DynamicBipartiteNet
 			}
 		}
 
+		NumericMatrix toMatrix() {
+
+			std::vector<int> all_m = getMs();
+			std::vector<int> all_n = getNs();
+
+			NumericMatrix mat(all_m.size(), all_n.size());
+
+			for(int i=0; i < all_m.size(); i++) {
+				for(int j=0; j < all_n.size(); j++) {
+					if (hasEdge(all_m[i], all_n[j])) mat(i,j) = 1;
+				}
+			}
+
+			return mat;
+		};
+
 
 };
 
-//setup pair type to hold index and value, so we can sort indexes instead of values
-typedef std::pair<int,int> myPair;
-
-//sorter for myPair type
-static bool comparator_r ( const myPair& l, const myPair& r) { 
-	return l.first > r.first; 
-}
-
-
 // [[Rcpp::export]]
 NumericMatrix sortMatrix(NumericMatrix bipartiteAdjMatrix) {
-	static const int numRows = bipartiteAdjMatrix.nrow();
-	static const int numCols = bipartiteAdjMatrix.ncol();
+	int numRows = bipartiteAdjMatrix.nrow();
+	int numCols = bipartiteAdjMatrix.ncol();
 
 	std::vector<myPair> colSums(numCols);
 	std::vector<myPair> rowSums(numRows);
@@ -199,11 +220,9 @@ NumericMatrix sortMatrix(NumericMatrix bipartiteAdjMatrix) {
 
 // [[Rcpp::export]]
 List calculateNODF(NumericMatrix bipartiteAdjMatrix) {
-	//Sort Matrix
-	NumericMatrix sortedMatrix = sortMatrix(bipartiteAdjMatrix);
 
-	static const int numRows = bipartiteAdjMatrix.nrow();
-	static const int numCols = bipartiteAdjMatrix.ncol();
+	int numRows = bipartiteAdjMatrix.nrow();
+	int numCols = bipartiteAdjMatrix.ncol();
 
 	std::vector<int> colSums(numCols);
 	std::vector<int> rowSums(numRows);
@@ -213,15 +232,15 @@ List calculateNODF(NumericMatrix bipartiteAdjMatrix) {
 	float row_NODF = 0.0;
 	float col_NODF = 0.0;
 	float final_NODF = 0.0;
-	float matrix_fill = 0.0;
+	double matrix_fill = 0.0;
 
 	//recalculate row and column sums
 	for(int rowIdx = 0; rowIdx < numRows; rowIdx++) {
 		for(int colIdx = 0; colIdx < numCols; colIdx++) {
-			rowSums[rowIdx] += sortedMatrix(rowIdx,colIdx);
-			colSums[colIdx] += sortedMatrix(rowIdx,colIdx);
-
-			matrix_fill += float(sortedMatrix(rowIdx, colIdx))/(numRows*numCols);
+			rowSums[rowIdx] += bipartiteAdjMatrix(rowIdx,colIdx);
+			colSums[colIdx] += bipartiteAdjMatrix(rowIdx,colIdx);
+			//std::cout << "matrix_fill: " << matrix_fill << std::endl;
+			matrix_fill += double(bipartiteAdjMatrix(rowIdx, colIdx))/double(numRows*numCols);
 		}
 	}
 
@@ -235,8 +254,8 @@ List calculateNODF(NumericMatrix bipartiteAdjMatrix) {
 				
 				//N_row = PO for this case
 				for(int k=0;k<numCols;k++) {
-					if(sortedMatrix(j,k)==1) {
-						if(sortedMatrix(i,k)==1) {
+					if(bipartiteAdjMatrix(j,k)==1) {
+						if(bipartiteAdjMatrix(i,k)==1) {
 							sum_po_positive += 1;
 						}
 						sum_po_negative +=1;
@@ -265,8 +284,8 @@ List calculateNODF(NumericMatrix bipartiteAdjMatrix) {
 				
 				//N_row = PO for this case
 				for(int k=0;k<numRows;k++) {
-					if(sortedMatrix(k,j)==1) {
-						if(sortedMatrix(k,i)==1) {
+					if(bipartiteAdjMatrix(k,j)==1) {
+						if(bipartiteAdjMatrix(k,i)==1) {
 							sum_po_positive += 1;
 						}
 						sum_po_negative +=1;
@@ -339,7 +358,7 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericMatrix originalMatrix, NumericVe
 	RNGScope scope;
 
 	DynamicBipartiteNet random_net;
-	NumericMatrix random_mat(originalMatrix.nrow() * 2, originalMatrix.ncol() * 2);
+	//NumericMatrix random_mat(originalMatrix.nrow() * 2, originalMatrix.ncol() * 2);
 
 	int cur_edges = 0;
 	int cur_m = 0;
@@ -445,7 +464,7 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericMatrix originalMatrix, NumericVe
 		}
 	}
 
-	return random_mat;
+	return random_net.toMatrix();
 }
 
 

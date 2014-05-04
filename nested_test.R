@@ -8,7 +8,9 @@ sourceCpp("nestedness.cpp")
 
 calculateNODF(getRandomMatrix_GrowMonotonic(csv_mat, 100))
 
-t<-getRandomMatrix_GrowEvents(csv_mat, sample(-1:5, 100, replace=T),sample(1:5, 100, replace=T), sample(0:1, 100, replace=T))
+t<-getRandomMatrix_GrowEvents(csv_mat, sample(-1:2, 50, replace=T), sample(-1:2, 50, replace=T), sample(-50:50, 50, replace=T))
+calculateNODF(sortMatrix(t))
+vegan::nestednodf(t)
 
 vegan::nestednodf(csv_mat)
 calculateNODF(csv_mat)
