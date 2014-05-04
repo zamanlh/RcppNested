@@ -1,8 +1,157 @@
 #include <Rcpp.h> 
 #include <vector>
 #include <algorithm>
-
+#include <cassert>
+#include <unordered_map>
 using namespace Rcpp;
+
+class DynamicBipartiteNet 
+{
+	private:
+		std::unordered_map<int, std::list<int> > m_neighbor_set;
+		std::unordered_map<int, std::list<int> > n_neighbor_set;
+		int num_n;
+		int num_m;
+	public:
+		DynamicBipartiteNet() {
+			num_n = 0;
+			num_m = 0;
+		};
+
+		std::vector<int> getNs() {
+			std::vector<int> n_keys;
+			std::unordered_map<int, std::list<int> >::iterator iter;
+			for(iter = n_neighbor_set.begin(); iter != n_neighbor_set.end(); iter++) {
+				n_keys.push_back(iter->first);
+			}
+			return n_keys;
+		};
+
+		std::vector<int> getMs() {
+			std::vector<int> m_keys;
+			std::unordered_map<int, std::list<int> >::iterator iter;
+			for(iter = m_neighbor_set.begin(); iter != m_neighbor_set.end(); iter++) {
+				m_keys.push_back(iter->first);
+			}
+			return m_keys;
+		};
+
+		std::vector<std::pair<int, int> > getEdges() {
+			std::vector<std::pair<int, int> > edge_pairs;
+			std::unordered_map<int, std::list<int> >::iterator m_iter;
+			std::list<int>::iterator n_iter;
+			for(m_iter = m_neighbor_set.begin(); m_iter != m_neighbor_set.end(); m_iter++) {
+				int m_idx = m_iter->first;
+				for(n_iter = (m_iter->second).begin(); n_iter != (m_iter->second).end(); n_iter++) {
+					int n_idx = *n_iter;
+					edge_pairs.push_back( std::pair<int, int>(m_idx, n_idx) );
+				}
+
+			}
+			return edge_pairs;
+
+		};
+
+		int addN() {
+			num_n += 1;
+			n_neighbor_set[num_n] = std::list<int>();
+			return num_n;
+		};
+
+		int addM() {
+			num_m += 1;
+			m_neighbor_set[num_m] = std::list<int>();
+			return num_m;
+		};
+
+		bool removeM(int idx) {
+			std::list<int> m_neighbors = m_neighbor_set[idx];
+
+			//for all of this node's neighbors...
+			for (std::list<int>::iterator it = m_neighbors.begin(); it != m_neighbors.end(); it++) {
+				//go find this ndoe in their neighbor list and remove it
+				std::list<int> n_neighbors = n_neighbor_set[*it];
+
+				std::list<int>::iterator itr = n_neighbor_set[*it].begin();
+				while (itr != n_neighbor_set[*it].end()) {
+					if (*itr == idx) {
+						std::list<int>::iterator toErase = itr;
+						++itr;
+						n_neighbor_set[*it].erase(toErase);
+					} else {
+						++itr;
+					}
+				}
+			}
+			m_neighbor_set.erase(idx);
+		};
+
+		bool removeN(int idx) {
+			std::list<int> n_neighbors = n_neighbor_set[idx];
+
+			//for all of this node's neighbors...
+			for (std::list<int>::iterator it = n_neighbors.begin(); it != n_neighbors.end(); it++) {
+				//go find this ndoe in their neighbor list and remove it
+				std::list<int> m_neighbors = m_neighbor_set[*it];
+
+				std::list<int>::iterator itr = m_neighbor_set[*it].begin();
+				while (itr != m_neighbor_set[*it].end()) {
+					if (*itr == idx) {
+						std::list<int>::iterator toErase = itr;
+						++itr;
+						m_neighbor_set[*it].erase(toErase);
+					} else {
+						++itr;
+					}
+				}
+			}
+			n_neighbor_set.erase(idx);
+		};
+
+		bool addEdge(int mIdx, int nIdx) {
+			if(&m_neighbor_set[mIdx] == NULL || &n_neighbor_set[nIdx] == NULL) return false;
+
+			m_neighbor_set[mIdx].push_back(nIdx);
+			n_neighbor_set[nIdx].push_back(mIdx);
+			return true;
+		};
+
+		bool hasEdge(int mIdx, int nIdx) {
+			std::list<int> m_neighbors = m_neighbor_set[mIdx];
+			bool has_edge = false;
+
+			for (std::list<int>::iterator it = m_neighbors.begin(); it != m_neighbors.end(); it++) {
+				if(*it == nIdx) has_edge=true;
+			}
+
+			return has_edge;
+
+		};
+
+		bool removeEdge(int mIdx, int nIdx) {
+			//remove n from m
+			std::list<int> m_neighbors = m_neighbor_set[mIdx];
+
+			for (std::list<int>::iterator it = m_neighbors.begin(); it != m_neighbors.end(); it++) {
+				//go find this node in their neighbors list and remove it
+				std::list<int> n_neighbors = n_neighbor_set[*it];
+				for (std::list<int>::iterator n_it = n_neighbors.begin(); n_it != n_neighbors.end(); n_it++) {
+					if(*n_it == mIdx) n_it = n_neighbors.erase(n_it);
+				}
+			}
+
+			std::list<int> n_neighbors = n_neighbor_set[nIdx];
+			for (std::list<int>::iterator it = n_neighbors.begin(); it != n_neighbors.end(); it++) {
+				//go find this ndoe in their neighbor list and remove it
+				std::list<int> m_neighbors = m_neighbor_set[*it];
+				for (std::list<int>::iterator m_it = m_neighbors.begin(); m_it != m_neighbors.end(); m_it++) {
+					if(*m_it == nIdx) m_it = m_neighbors.erase(m_it);
+				}
+			}
+		}
+
+
+};
 
 //setup pair type to hold index and value, so we can sort indexes instead of values
 typedef std::pair<int,int> myPair;
@@ -14,14 +163,14 @@ static bool comparator_r ( const myPair& l, const myPair& r) {
 
 
 // [[Rcpp::export]]
-NumericMatrix sortMatrix(NumericMatrix m) {
-	static const int numRows = m.nrow();
-	static const int numCols = m.ncol();
+NumericMatrix sortMatrix(NumericMatrix bipartiteAdjMatrix) {
+	static const int numRows = bipartiteAdjMatrix.nrow();
+	static const int numCols = bipartiteAdjMatrix.ncol();
 
 	std::vector<myPair> colSums(numCols);
 	std::vector<myPair> rowSums(numRows);
 
-	NumericMatrix sortedMatrix(m.nrow(), m.ncol());
+	NumericMatrix sortedMatrix(bipartiteAdjMatrix.nrow(), bipartiteAdjMatrix.ncol());
 
 	//calculate row and column sums
 	for(int rowIdx = 0; rowIdx < numRows; rowIdx++) {
@@ -29,8 +178,8 @@ NumericMatrix sortMatrix(NumericMatrix m) {
 		for(int colIdx = 0; colIdx < numCols; colIdx++) {
 			colSums[colIdx].second = colIdx;
 
-			rowSums[rowIdx].first += m(rowIdx,colIdx);
-			colSums[colIdx].first += m(rowIdx,colIdx);
+			rowSums[rowIdx].first += bipartiteAdjMatrix(rowIdx,colIdx);
+			colSums[colIdx].first += bipartiteAdjMatrix(rowIdx,colIdx);
 		}
 	}
 
@@ -41,7 +190,7 @@ NumericMatrix sortMatrix(NumericMatrix m) {
 	//create sorted matrix by cross-referencing sorted indexes
 	for(int rowIdx = 0; rowIdx < numRows; rowIdx++) {
 		for(int colIdx = 0; colIdx < numCols; colIdx++) {
-			sortedMatrix(rowIdx, colIdx) = m(rowSums[rowIdx].second, colSums[colIdx].second);
+			sortedMatrix(rowIdx, colIdx) = bipartiteAdjMatrix(rowSums[rowIdx].second, colSums[colIdx].second);
 		}
 	}
 
@@ -49,12 +198,12 @@ NumericMatrix sortMatrix(NumericMatrix m) {
 }
 
 // [[Rcpp::export]]
-List calculateNODF(NumericMatrix m) {
+List calculateNODF(NumericMatrix bipartiteAdjMatrix) {
 	//Sort Matrix
-	NumericMatrix sortedMatrix = sortMatrix(m);
+	NumericMatrix sortedMatrix = sortMatrix(bipartiteAdjMatrix);
 
-	static const int numRows = m.nrow();
-	static const int numCols = m.ncol();
+	static const int numRows = bipartiteAdjMatrix.nrow();
+	static const int numCols = bipartiteAdjMatrix.ncol();
 
 	std::vector<int> colSums(numCols);
 	std::vector<int> rowSums(numRows);
@@ -186,6 +335,121 @@ NumericMatrix getRandomMatrix_ColShuffle(NumericMatrix originalMatrix) {
 }
 
 // [[Rcpp::export]]
+NumericMatrix getRandomMatrix_GrowEvents(NumericMatrix originalMatrix, NumericVector mEvents, NumericVector nEvents, NumericVector edgeEvents) {
+	RNGScope scope;
+
+	DynamicBipartiteNet random_net;
+	NumericMatrix random_mat(originalMatrix.nrow() * 2, originalMatrix.ncol() * 2);
+
+	int cur_edges = 0;
+	int cur_m = 0;
+	int cur_n = 0;
+
+	//make sure event vectors are same length
+	assert(mEvents.size() == nEvents.size() == edgeEvents.size());
+
+	for(int t = 0; t < mEvents.size(); t++) {
+		int m_event = mEvents[t];
+		int n_event = nEvents[t];
+		int edge_event = edgeEvents[t];
+
+		if(m_event > 0) {
+			for(int i=0; i < m_event; i++){
+				random_net.addM();	
+				cur_m += 1;
+			} 
+		}
+		if(m_event < 0) {
+			if(cur_m < -m_event) {
+				std::cerr << "can't have negative m, removing as many as possible" << std::endl;
+				m_event = -cur_m;
+			}
+			//get Ms and pick a random one to remove
+			std::vector<int> allM = random_net.getMs();
+			std::random_shuffle(allM.begin(), allM.end());
+			
+			for(int i=0; i < -m_event; i++) {
+				random_net.removeM(allM[i]);
+				cur_m -= 1;
+			}
+		}
+
+		
+		if(cur_n + n_event < 0) {
+			std::cerr << "can't have negative n, removing as many as possible" << std::endl;
+			n_event = -cur_n;
+
+		}
+
+		if(n_event > 0) {
+			for(int i=0; i<n_event; i++) {
+				random_net.addN();
+				cur_n += 1;
+			} 
+		}
+		if(n_event < 0) {
+			//get Ns and pick a random one to remove
+			//get Ms and pick a random one to remove
+			std::vector<int> allN = random_net.getNs();
+			std::random_shuffle(allN.begin(), allN.end());
+			for(int i=0; i < -n_event; i++) {
+				random_net.removeN(allN[i]);
+				cur_n -= 1;
+			};
+
+		}
+
+		cur_edges = random_net.getEdges().size();
+		
+		if(cur_edges + edge_event < 0) {
+			std::cerr << "can't have negative edges, removing as many as possible" << std::endl;
+			edge_event = -cur_edges;
+		}
+
+		if(edge_event > 0) {
+			if(cur_m * cur_n - cur_edges <  edge_event) {
+				std::cerr << "can't add that many edges, adding as many as possible" << std::endl;
+				edge_event = cur_m * cur_n - cur_edges;
+			}
+			std::vector<int> allM = random_net.getMs();
+			std::vector<int> allN = random_net.getNs();
+			
+			std::vector<std::pair<int, int> > non_edge_list;
+
+			//make a list of non-edges in network: O(N*M*deg(M))
+			for(int i=0; i < allM.size(); i++) {
+				for(int j=0; j < allN.size(); j++) {
+					if(random_net.hasEdge(allM[i], allN[j]) == false) {
+						//add pair to "non-edge list"
+						non_edge_list.push_back(std::pair<int, int> (allM[i], allN[j]));
+					}
+				}
+			}
+
+			//permute non-edge list and pick edge_event from them to add
+			std::random_shuffle(non_edge_list.begin(), non_edge_list.end());
+			for(int i=0; i < edge_event; i++) {
+				bool testing = random_net.addEdge(non_edge_list[i].first, non_edge_list[i].second);
+				cur_edges += 1;
+			}
+		}
+		if (edge_event < 0) {
+			//get edge list, permute, and pick edge_event random ones to remove
+			std::vector<std::pair<int, int> > all_edges = random_net.getEdges();
+			std::random_shuffle(all_edges.begin(), all_edges.end());
+
+			for(int i=0; i < -edge_event; i++) {
+				random_net.removeEdge(all_edges[i].first, all_edges[i].second);
+				cur_edges -= 1;
+			}
+		}
+	}
+
+	return random_mat;
+}
+
+
+// [[Rcpp::export]]
 NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int timeSteps) {
 	RNGScope scope;
 	NumericMatrix random_mat(originalMatrix.nrow(), originalMatrix.ncol());
@@ -197,10 +461,6 @@ NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int ti
 	double lambda_m = (double(num_m) - 1)/timeSteps;
 	double lambda_n = (double(num_n) - 1)/timeSteps;
 
-	NumericVector edge_event_vector = rpois(timeSteps*3, lambda_edge);
-	NumericVector m_event_vector = rpois(timeSteps, lambda_m);
-	NumericVector n_event_vector = rpois(timeSteps, lambda_n);
-
 	int cur_edges = 1;
 	int cur_m = 1;
 	int cur_n = 1;
@@ -208,14 +468,15 @@ NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int ti
 	while(cur_m < num_m || cur_n < num_n || cur_edges < num_edges) {
 		//add m (hosts)
 		if (cur_m < num_m) cur_m += rpois(1, lambda_m)[0];
+		cur_m = std::min(cur_m, num_m);
 
 		//add n (parasites)
 		if (cur_n < num_n) cur_n += rpois(1, lambda_n)[0];
-
+		cur_n = std::min(cur_n, num_n);
 
 		//TODO: make sure cur_n and cur_m never go > m and n, since in this model,
 		//we have a max size on our matrix from the start. 
-		
+
 		//add edges 
 		if(cur_edges < num_edges) {
 			int edge_event = rpois(1, lambda_edge)[0];
