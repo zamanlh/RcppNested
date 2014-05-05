@@ -550,3 +550,209 @@ NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int ti
 	return random_mat;
 }
 
+
+
+// [[Rcpp::export]]
+NumericVector getMonotonicTimeseries(NumericMatrix originalMatrix, int timeSteps, int nodfFrequency, bool sortFirst) {
+	RNGScope scope;
+	std::vector<double> nodf_timeseries;
+
+	NumericMatrix random_mat(originalMatrix.nrow(), originalMatrix.ncol());
+	int num_edges = std::accumulate(originalMatrix.begin(), originalMatrix.end(), 0);
+	int num_m = originalMatrix.nrow();
+	int num_n = originalMatrix.ncol();
+
+	double lambda_edge = (double(num_edges) - 1) /timeSteps;
+	double lambda_m = (double(num_m) - 1)/timeSteps;
+	double lambda_n = (double(num_n) - 1)/timeSteps;
+
+	int cur_edges = 1;
+	int cur_m = 1;
+	int cur_n = 1;
+
+	int time_step = 0;
+
+	while(cur_m < num_m || cur_n < num_n || cur_edges < num_edges) {
+		if(time_step > 0 && time_step % nodfFrequency == 0) {
+			NumericMatrix to_test = random_mat(Range(0, cur_m - 1), Range(0, cur_n - 1));
+			if(sortFirst) to_test = sortMatrix(to_test);
+			List nodf_result = calculateNODF(to_test);
+			nodf_timeseries.push_back(Rcpp::as<double>(nodf_result["NODF"]));
+		}
+		//add m (hosts)
+		if (cur_m < num_m) cur_m += rpois(1, lambda_m)[0];
+		cur_m = std::min(cur_m, num_m);
+
+		//add n (parasites)
+		if (cur_n < num_n) cur_n += rpois(1, lambda_n)[0];
+		cur_n = std::min(cur_n, num_n);
+
+		//TODO: make sure cur_n and cur_m never go > m and n, since in this model,
+		//we have a max size on our matrix from the start. 
+
+		//add edges 
+		if(cur_edges < num_edges) {
+			int edge_event = rpois(1, lambda_edge)[0];
+
+			if(cur_m*cur_n - cur_edges < edge_event) {
+				//not enough space for edges...
+				//max out how many edges we should add then
+				edge_event = cur_m * cur_n - cur_edges;
+			}
+
+			int num_edges_left = edge_event;
+
+			while(num_edges_left > 0) {
+				//better algorithm : count how many non-edges there are, use that as prob of picking 1 of them
+				//iterate through matrix until we find a 0, then pull from ^ prob to add edge or not...			
+				int num_vacant_edges = cur_m * cur_n - cur_edges;
+				double prob_add_edge = 1 / double(num_vacant_edges);
+
+				for(int i = 0; i < cur_m; i++) {
+					for(int j=0; j < cur_n; j++) {
+						double ran_draw = runif(1, 0, 1)[0];
+
+						if(random_mat(i,j) == 0 && ran_draw < prob_add_edge && num_edges_left > 0) {
+							num_edges_left -= 1;
+							cur_edges += 1;
+							random_mat(i, j) = 1;
+						}
+					}
+				}
+			}
+		}
+	time_step += 1;
+	}
+
+	return wrap(nodf_timeseries);
+}
+
+
+// [[Rcpp::export]]
+NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, NumericVector edgeEvents, int nodfFrequency, bool sortFirst) {
+	RNGScope scope;
+	DynamicBipartiteNet random_net;
+	std::vector<double> nodf_timeseries;
+
+	int cur_edges = 0;
+	int cur_m = 0;
+	int cur_n = 0;
+
+	//make sure event vectors are same length
+	assert(mEvents.size() == nEvents.size() == edgeEvents.size());
+
+	for(int t = 0; t < mEvents.size(); t++) {
+		if(t > 0 && t % nodfFrequency == 0) {
+			NumericMatrix to_test = random_net.toMatrix();
+			if(sortFirst) to_test = sortMatrix(to_test);
+			List nodf_result = calculateNODF(to_test);
+			nodf_timeseries.push_back(Rcpp::as<double>(nodf_result["NODF"]));
+		}
+
+		int m_event = mEvents[t];
+		int n_event = nEvents[t];
+		int edge_event = edgeEvents[t];
+
+		int starting_edges = random_net.getEdges().size();
+
+		if(m_event > 0) {
+			for(int i=0; i < m_event; i++){
+				random_net.addM();	
+				cur_m += 1;
+			} 
+		}
+		if(m_event < 0) {
+			if(cur_m < -m_event) {
+				std::cerr << "can't have negative m, removing as many as possible" << std::endl;
+				m_event = -cur_m;
+			}
+			//get Ms and pick a random one to remove
+			std::vector<int> allM = random_net.getMs();
+			std::random_shuffle(allM.begin(), allM.end());
+			
+			for(int i=0; i < -m_event; i++) {
+				random_net.removeM(allM[i]);
+				cur_m -= 1;
+			}
+		}
+
+		
+		if(cur_n + n_event < 0) {
+			std::cerr << "can't have negative n, removing as many as possible" << std::endl;
+			n_event = -cur_n;
+
+		}
+
+		if(n_event > 0) {
+			for(int i=0; i<n_event; i++) {
+				random_net.addN();
+				cur_n += 1;
+			} 
+		}
+		if(n_event < 0) {
+			//get Ns and pick a random one to remove
+			//get Ms and pick a random one to remove
+			std::vector<int> allN = random_net.getNs();
+			std::random_shuffle(allN.begin(), allN.end());
+			for(int i=0; i < -n_event; i++) {
+				random_net.removeN(allN[i]);
+				cur_n -= 1;
+			};
+
+		}
+
+		cur_edges = random_net.getEdges().size();
+		//lets adjust this to make up for how many edges we got rid of above...
+		int edge_adjust = starting_edges - cur_edges;
+		edge_event = edge_event + edge_adjust;
+
+		if(cur_edges + edge_event < 0) {
+			std::cerr << "can't have negative edges, removing as many as possible" << std::endl;
+			edge_event = -cur_edges;
+		}
+
+		if(edge_event > 0) {
+
+			if(cur_m * cur_n - cur_edges <  edge_event) {
+				std::cerr << "can't add that many edges, adding as many as possible" << std::endl;
+				edge_event = cur_m * cur_n - cur_edges;
+			}
+			std::vector<int> allM = random_net.getMs();
+			std::vector<int> allN = random_net.getNs();
+			
+			std::vector<std::pair<int, int> > non_edge_list;
+
+			//make a list of non-edges in network: O(N*M*deg(M))
+			for(int i=0; i < allM.size(); i++) {
+				for(int j=0; j < allN.size(); j++) {
+					if(random_net.hasEdge(allM[i], allN[j]) == false) {
+						//add pair to "non-edge list"
+						non_edge_list.push_back(std::pair<int, int> (allM[i], allN[j]));
+					}
+				}
+			}
+
+			//permute non-edge list and pick edge_event from them to add
+			std::random_shuffle(non_edge_list.begin(), non_edge_list.end());
+			for(int i=0; i < edge_event; i++) {
+				bool test = random_net.addEdge(non_edge_list[i].first, non_edge_list[i].second);
+			}
+		}
+		if (edge_event < 0) {
+			//get edge list, permute, and pick edge_event random ones to remove
+			std::vector<std::pair<int, int> > all_edges = random_net.getEdges();
+			std::random_shuffle(all_edges.begin(), all_edges.end());
+			bool test = false;
+			bool test2 = false;
+			for(int i=0; i < -edge_event; i++) {
+				test = random_net.removeEdge(all_edges[i].first, all_edges[i].second);
+				test2 = random_net.hasEdge(all_edges[i].first, all_edges[i].second);
+
+			}
+
+
+		}
+	}
+
+	return wrap(nodf_timeseries);
+}
