@@ -758,3 +758,73 @@ NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, N
 
 	return wrap(nodf_timeseries);
 }
+
+// [[Rcpp::export]]
+NumericMatrix getRandomMatrix_Abundance(NumericVector mAbundance, NumericVector nAbundance, NumericMatrix quantInteractions, NumericMatrix possibleInteractions) {
+	//TODO make sure all lengths are okay
+	NumericVector m_abundance = clone(mAbundance);
+	NumericVector n_abundance = clone(nAbundance);
+
+	NumericMatrix to_return(possibleInteractions.nrow(), possibleInteractions.ncol());
+	double total_interactions = std::accumulate(quantInteractions.begin(), quantInteractions.end(), 0);
+	
+	double num_cur_interactions = 0;
+	double num_m_left = std::accumulate(m_abundance.begin(), m_abundance.end(), 0);
+	double num_n_left = std::accumulate(n_abundance.begin(), n_abundance.end(), 0);
+
+	while(num_cur_interactions < total_interactions) {
+		//pick an M
+		int random_m = round(runif(1, 0, num_m_left - 1)[0]);
+		int random_m_idx = -1;
+
+		int m_sum = 0;
+		for (int m_idx = 0; m_idx < m_abundance.size(); m_idx++) {
+			m_sum += m_abundance[m_idx];
+			if (m_sum >= random_m) {
+				random_m_idx = m_idx;
+				break;
+			}
+		}
+
+		if (random_m_idx < 0) { 
+			//TODO We broke something...
+			std::cerr << "nah, this isn't right... m" << std::endl;
+		}
+
+		//pick an N
+		int random_n = round(runif(1, 0, num_n_left - 1)[0]);
+		int random_n_idx = -1;
+
+		int n_sum = 0;
+		for (int n_idx = 0; n_idx < n_abundance.size(); n_idx++) {
+			n_sum += n_abundance[n_idx];
+			if (n_sum >= random_n) {
+				random_n_idx = n_idx;
+				break;
+			}
+		}
+
+		if (random_n_idx < 0) { 
+			//TODO We broke something...
+			std::cerr << "nah, this isn't right... n" << std::endl;
+		}
+		
+		//can they interact? If so, add the edge
+		if(possibleInteractions(random_m_idx, random_n_idx)) {
+			//update mAbundances, nAbundances, num_cur_interactions, and num_left
+			num_cur_interactions += 1;
+
+			m_abundance[random_m_idx] -= 1;
+			n_abundance[random_n_idx] -= 1;
+
+			num_m_left -= 1;
+			num_n_left -= 1;
+
+			to_return(random_m_idx, random_n_idx) = 1;
+		}
+		//else... try again!
+	}
+	return to_return;
+}
+
+
