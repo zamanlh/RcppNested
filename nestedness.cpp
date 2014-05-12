@@ -760,12 +760,12 @@ NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, N
 }
 
 // [[Rcpp::export]]
-NumericMatrix getRandomMatrix_Abundance(NumericVector mAbundance, NumericVector nAbundance, NumericMatrix quantInteractions, NumericMatrix possibleInteractions) {
+NumericMatrix getRandomMatrix_Abundance(NumericVector mAbundance, NumericVector nAbundance, NumericMatrix quantInteractions, NumericMatrix probInteractions) {
 	//TODO make sure all lengths are okay
 	NumericVector m_abundance = clone(mAbundance);
 	NumericVector n_abundance = clone(nAbundance);
 
-	NumericMatrix to_return(possibleInteractions.nrow(), possibleInteractions.ncol());
+	NumericMatrix to_return(probInteractions.nrow(), probInteractions.ncol());
 	double total_interactions = std::accumulate(quantInteractions.begin(), quantInteractions.end(), 0);
 	
 	double num_cur_interactions = 0;
@@ -810,7 +810,7 @@ NumericMatrix getRandomMatrix_Abundance(NumericVector mAbundance, NumericVector 
 		}
 		
 		//can they interact? If so, add the edge
-		if(possibleInteractions(random_m_idx, random_n_idx)) {
+		if(runif(1, 0, 1)[0] < probInteractions(random_m_idx, random_n_idx)) {
 			//update mAbundances, nAbundances, num_cur_interactions, and num_left
 			num_cur_interactions += 1;
 
@@ -822,9 +822,7 @@ NumericMatrix getRandomMatrix_Abundance(NumericVector mAbundance, NumericVector 
 
 			to_return(random_m_idx, random_n_idx) = 1;
 		}
-		//else... try again!
 	}
 	return to_return;
 }
-
 
