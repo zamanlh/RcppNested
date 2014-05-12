@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <unordered_map>
+
 using namespace Rcpp;
 
 //setup pair type to hold index and value, so we can sort indexes instead of values
@@ -374,6 +375,7 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericVector mEvents, NumericVector nE
 	int cur_n = 0;
 
 	//make sure event vectors are same length
+	//TODO::turn this into an R::error
 	assert(mEvents.size() == nEvents.size() == edgeEvents.size());
 
 	for(int t = 0; t < mEvents.size(); t++) {
@@ -391,7 +393,7 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericVector mEvents, NumericVector nE
 		}
 		if(m_event < 0) {
 			if(cur_m < -m_event) {
-				std::cerr << "can't have negative m, removing as many as possible" << std::endl;
+				//std::cerr << "can't have negative m, removing as many as possible" << std::endl;
 				m_event = -cur_m;
 			}
 			//get Ms and pick a random one to remove
@@ -406,7 +408,7 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericVector mEvents, NumericVector nE
 
 		
 		if(cur_n + n_event < 0) {
-			std::cerr << "can't have negative n, removing as many as possible" << std::endl;
+			//std::cerr << "can't have negative n, removing as many as possible" << std::endl;
 			n_event = -cur_n;
 
 		}
@@ -435,14 +437,14 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericVector mEvents, NumericVector nE
 		edge_event = edge_event + edge_adjust;
 
 		if(cur_edges + edge_event < 0) {
-			std::cerr << "can't have negative edges, removing as many as possible" << std::endl;
+			//std::cerr << "can't have negative edges, removing as many as possible" << std::endl;
 			edge_event = -cur_edges;
 		}
 
 		if(edge_event > 0) {
 
 			if(cur_m * cur_n - cur_edges <  edge_event) {
-				std::cerr << "can't add that many edges, adding as many as possible" << std::endl;
+				//std::cerr << "can't add that many edges, adding as many as possible" << std::endl;
 				edge_event = cur_m * cur_n - cur_edges;
 			}
 			std::vector<int> allM = random_net.getMs();
@@ -487,7 +489,7 @@ NumericMatrix getRandomMatrix_GrowEvents(NumericVector mEvents, NumericVector nE
 
 
 // [[Rcpp::export]]
-NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int timeSteps) {
+NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int timeSteps=100) {
 	RNGScope scope;
 	NumericMatrix random_mat(originalMatrix.nrow(), originalMatrix.ncol());
 	int num_edges = std::accumulate(originalMatrix.begin(), originalMatrix.end(), 0);
@@ -553,7 +555,7 @@ NumericMatrix getRandomMatrix_GrowMonotonic(NumericMatrix originalMatrix, int ti
 
 
 // [[Rcpp::export]]
-NumericVector getMonotonicTimeseries(NumericMatrix originalMatrix, int timeSteps, int nodfFrequency, bool sortFirst) {
+NumericVector getMonotonicTimeseries(NumericMatrix originalMatrix, int timeSteps, int nodfFrequency, bool sortFirst=true) {
 	RNGScope scope;
 	std::vector<double> nodf_timeseries;
 
@@ -629,7 +631,7 @@ NumericVector getMonotonicTimeseries(NumericMatrix originalMatrix, int timeSteps
 
 
 // [[Rcpp::export]]
-NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, NumericVector edgeEvents, int nodfFrequency, bool sortFirst) {
+NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, NumericVector edgeEvents, int nodfFrequency, bool sortFirst=true) {
 	RNGScope scope;
 	DynamicBipartiteNet random_net;
 	std::vector<double> nodf_timeseries;
@@ -663,7 +665,7 @@ NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, N
 		}
 		if(m_event < 0) {
 			if(cur_m < -m_event) {
-				std::cerr << "can't have negative m, removing as many as possible" << std::endl;
+				//std::cerr << "can't have negative m, removing as many as possible" << std::endl;
 				m_event = -cur_m;
 			}
 			//get Ms and pick a random one to remove
@@ -678,7 +680,7 @@ NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, N
 
 		
 		if(cur_n + n_event < 0) {
-			std::cerr << "can't have negative n, removing as many as possible" << std::endl;
+			//std::cerr << "can't have negative n, removing as many as possible" << std::endl;
 			n_event = -cur_n;
 
 		}
@@ -707,14 +709,14 @@ NumericVector getEventTimeseries(NumericVector mEvents, NumericVector nEvents, N
 		edge_event = edge_event + edge_adjust;
 
 		if(cur_edges + edge_event < 0) {
-			std::cerr << "can't have negative edges, removing as many as possible" << std::endl;
+			//std::cerr << "can't have negative edges, removing as many as possible" << std::endl;
 			edge_event = -cur_edges;
 		}
 
 		if(edge_event > 0) {
 
 			if(cur_m * cur_n - cur_edges <  edge_event) {
-				std::cerr << "can't add that many edges, adding as many as possible" << std::endl;
+				//std::cerr << "can't add that many edges, adding as many as possible" << std::endl;
 				edge_event = cur_m * cur_n - cur_edges;
 			}
 			std::vector<int> allM = random_net.getMs();
