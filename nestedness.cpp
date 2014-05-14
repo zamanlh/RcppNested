@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cassert>
 #include <unordered_map>
-
 using namespace Rcpp;
+// [[Rcpp::plugins(cpp11)]]
 
 //setup pair type to hold index and value, so we can sort indexes instead of values
 typedef std::pair<int,int> myPair;
@@ -820,9 +820,8 @@ NumericMatrix getRandomMatrix_Abundance(NumericVector mAbundance, NumericVector 
 			num_m_left -= 1;
 			num_n_left -= 1;
 
-			to_return(random_m_idx, random_n_idx) = 1;
+			to_return(random_m_idx, random_n_idx) += 1;
 		}
 	}
 	return to_return;
 }
-
